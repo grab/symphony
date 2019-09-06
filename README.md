@@ -20,7 +20,7 @@ import (
 	"errors"
 	"fmt"
 
-	"gitlab.myteksi.net/gophers/go/user-trust/commons/symphony"
+	"github.com/grab/symphony"
 )
 
 
