@@ -2,27 +2,63 @@
 `Symphony` is a lib to allow devs to declare dependencies of tasks/functions, 
 and `symphony` would run all tasks based on their dependencies automatically.
 
+This library significantly eases the flow-based/graph-based development, and achieves optimized concurrency automatically.
+
+
+
 ## Quick Usage
-```
-f1 -> f2 -> f3 -> f6
-     / \   / \
-      |     |
-f5 -> f4 -------> f7
-```
-Assuming the task dependency graph is the above one, 
-the following code will resolve and run based on this
+![](https://camo.githubusercontent.com/e76aee65726d8afb9cd0937e8919710def3e1504/68747470733a2f2f692e696d6775722e636f6d2f504272525762452e706e67)
+
+
 
 ```go
 package main
 
 import (
-	"context"
-	"errors"
-	"fmt"
+    "context"
+    "errors"
+    "fmt"
 
-	"github.com/grab/symphony"
+    "github.com/grab/symphony"
 )
 
+func main() {
+    s := symphony.New()
+
+    // Define Task f1, f2, f3
+    // Task can be declare in any order
+    s.Add("f1", nil, func(res map[string]*symphony.TaskState) (interface{}, error)){
+        return "f1 result", nil
+    }).Add("f2", nil, func(res map[string]*symphony.TaskState) (interface{}, error){
+        return "f1 result", nil
+    }).Add("f3", []string{"f1", "f2"}, func(res map[string]*symphony.TaskState) (interface{}, error) {
+        return "f3 result", nil
+    })
+    // wait up to 1500ms
+    res, err := s.Do(context.Background(), 1500)
+
+    f2result,errf2 := res["f2"]
+    f3result, errf3 := res["f3"]
+ }
+```
+
+## Advanced Usage
+![](https://camo.githubusercontent.com/6377816a39499370c29062e262616fec66edda0f/68747470733a2f2f692e696d6775722e636f6d2f46344e44364e732e706e67)
+
+Assuming the task dependency graph is the above one, 
+the following code will resolve and run based on this
+
+
+```go
+package main
+
+import (
+    "context"
+    "errors"
+    "fmt"
+
+    "github.com/grab/symphony"
+)
 
 func main() {
     s := symphony.New()
@@ -51,6 +87,7 @@ func main() {
         fmt.Println("==starting f1==")
         return "f1 result", nil
     })
+    // wait up to 1500ms
     res, err := s.Do(context.Background(), 1500)
     
 
@@ -79,3 +116,6 @@ func main() {
    if it exceeds this
    
 Please see `symphony_test.go` for more use cases
+
+## Maintainers
+* [Muqi Li](https://www.linkedin.com/in/muqili/)
