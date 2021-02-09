@@ -15,8 +15,9 @@ import (
 
 // Symphony defines top struct
 type Symphony struct {
-	tasks map[string]*task
-	err   error
+	tasks               map[string]*task
+	err                 error
+	taskRuntimeStatFunc TaskRuntimeStatFunc
 }
 
 // TaskState defines the state of each task
@@ -24,6 +25,20 @@ type TaskState struct {
 	R interface{}
 	E error
 }
+
+// TaskRunTimeStat defines the task run time states
+type TaskRunTimeStat struct {
+	// StartTime is startTime of the task including the time to wait all dependents finishing.
+	StartTime *time.Time
+	// StartTimeForTaskFn is startTime of the task's func, after all dependents finished.
+	StartTimeForTaskFn *time.Time
+	// EndTime is the end Time of task's func.
+	EndTime            *time.Time
+	Name               string
+}
+
+// TaskRuntimeStatFunc record the task runtime stat to do the latency check
+type TaskRuntimeStatFunc func(statRecord *TaskRunTimeStat)
 
 type taskFunc func(res map[string]*TaskState) (interface{}, error)
 
@@ -62,6 +77,12 @@ func New() *Symphony {
 	return &Symphony{
 		tasks: map[string]*task{},
 	}
+}
+
+// SetTaskRuntimeStatFunc set the TaskRuntimeStatFunc
+func (symphony *Symphony) SetTaskRuntimeStatFunc(taskRuntimeStatFunc TaskRuntimeStatFunc) *Symphony {
+	symphony.taskRuntimeStatFunc = taskRuntimeStatFunc
+	return symphony
 }
 
 // Add adds tasks
@@ -174,6 +195,8 @@ func (symphony *Symphony) do(ctx context.Context, res map[string]*TaskState, don
 		go func(name string, t *task) {
 			defer func() { t.close() }()
 
+			startTime := time.Now()
+
 			results := make(map[string]*TaskState, len(t.Deps))
 
 			// drain dependency results
@@ -186,7 +209,18 @@ func (symphony *Symphony) do(ctx context.Context, res map[string]*TaskState, don
 				}
 			}
 
+			startTimeForTaskFn := time.Now()
 			r, fnErr := t.Fn(results)
+			if symphony.taskRuntimeStatFunc != nil {
+				endTime := time.Now()
+				// allow a functor to log the latency.
+				symphony.taskRuntimeStatFunc(&TaskRunTimeStat{
+					StartTime:          &startTime,
+					StartTimeForTaskFn: &startTimeForTaskFn,
+					EndTime:            &endTime,
+					Name:               t.Name,
+				})
+			}
 
 			if fnErr != nil {
 				t.done(r, fnErr)
