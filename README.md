@@ -30,10 +30,64 @@ func main() {
     s.Add("f1", nil, func(res map[string]*symphony.TaskState) (interface{}, error)){
         return "f1 result", nil
     }).Add("f2", nil, func(res map[string]*symphony.TaskState) (interface{}, error){
-        return "f1 result", nil
+        return "f2 result", nil
     }).Add("f3", []string{"f1", "f2"}, func(res map[string]*symphony.TaskState) (interface{}, error) {
         return "f3 result", nil
     })
+    // wait up to 1500ms
+    res, err := s.Do(context.Background(), 1500)
+
+    f2result,errf2 := res["f2"]
+    f3result, errf3 := res["f3"]
+ }
+```
+
+## Basic Usage with Latency measure
+The task depency graph is the same with Quick usage. This Usage just adds the way to log the latency of tasks.
+To add the latency check, you just need to create a func like func(statRecord *symphony.TaskRunTimeStat), and then call SetTaskRuntimeStatFunc with the Symphony object. BTW, it is optional.
+
+
+```go
+package main
+
+import (
+    "context"
+    "errors"
+    "fmt"
+
+    "github.com/grab/symphony"
+)
+
+// an example func to log the latency. This is just to print the latency in console, but you can call other log utils too.
+// this function will be called after the symphony finished a task.
+var symphonyLatencyFunc = func(statRecord *symphony.TaskRunTimeStat) {
+    //// add your latency log function here, like replacing the logLatency to the method your system supported.
+    //// statRecord.StartTime is start time of the task including the time to wait all dependents finishing.
+    //// statRecord.StartTimeForTaskFn is start time of the task's fun, after all dependencies finish.
+    //// statRecord.EndTime is end time of the task's fun, after all dependencies finish.
+    taskName := statRecord.Name
+    startTime := *statRecord.StartTime
+    startTimeForTaskFn := *statRecord.StartTimeForTaskFn
+    endTime := *statRecord.EndTime
+    fmt.Printf("taskName:%v, task begin time with depency waiting time: %v, end time: %v, latency: %v\n", taskName, startTime, endTime, endTime.Sub(startTime).Milliseconds())
+    fmt.Printf("taskName:%v, task begin time without depency waiting time: %v, end time: %v, latency: %v\n", taskName, startTimeForTaskFn, endTime, endTime.Sub(startTimeForTaskFn).Milliseconds())
+}
+
+func main() {
+    s := symphony.New()
+
+    // Define Task f1, f2, f3
+    // Task can be declare in any order
+    s.Add("f1", nil, func(res map[string]*symphony.TaskState) (interface{}, error)){
+        return "f1 result", nil
+    }).Add("f2", nil, func(res map[string]*symphony.TaskState) (interface{}, error){
+        return "f2 result", nil
+    }).Add("f3", []string{"f1", "f2"}, func(res map[string]*symphony.TaskState) (interface{}, error) {
+        return "f3 result", nil
+    })
+    // you could set the latency check func here, and it is optional.
+    // the function will be called after the symphony finished a task.
+    s.SetTaskRuntimeStatFunc(symphonyLatencyFunc)
     // wait up to 1500ms
     res, err := s.Do(context.Background(), 1500)
 
