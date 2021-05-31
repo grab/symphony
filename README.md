@@ -129,7 +129,7 @@ func main() {
 ```
 
 ## Advanced Usage
-![](https://camo.githubusercontent.com/6377816a39499370c29062e262616fec66edda0f/68747470733a2f2f692e696d6775722e636f6d2f46344e44364e732e706e67)
+![](https://user-images.githubusercontent.com/1205083/120151745-37bf7100-c21f-11eb-91c7-6d19f28c501b.png)
 
 Assuming the task dependency graph is the above one, 
 the following code will resolve and run based on this
