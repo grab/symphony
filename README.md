@@ -1,13 +1,14 @@
 # Symphony
-`Symphony` is a lib to allow devs to declare dependencies of tasks/functions, 
-and `symphony` would run all tasks based on their dependencies automatically.
+`Symphony` is a Golang library to allow devs to declare dependencies of tasks/functions, 
+and `symphony` automatically resolves run all tasks based on the dependencies.
 
-This library significantly eases the flow-based/graph-based development, and achieves optimized concurrency automatically.
+This library significantly eases the flow-based/graph-based data fetching for Machine Learning prediction, used inside Grab where models require 200+ data in some cases. 
 
+Traditionally, when different data comes with dependency(e.g. phone number based features requires calling user service to get phone number first), developers need to explicitly allocate dependent data fetching (usually different service/DB call) at different layers (layer-1: calling user-service to get phone number, layer-2: calling phone-number feature DB by phone number in layer-1). With `Symphony`, Developers can declare the direct dependency between different data, and `Symphony` will build a DAG internally and fetch data based on it, so no need for a developer to specify the global layers.
 
 
 ## Quick Usage
-![](https://camo.githubusercontent.com/e76aee65726d8afb9cd0937e8919710def3e1504/68747470733a2f2f692e696d6775722e636f6d2f504272525762452e706e67)
+![](https://user-images.githubusercontent.com/1205083/120143502-cbd70b80-c212-11eb-997d-76ea694b01cc.png)
 
 
 
@@ -22,23 +23,43 @@ import (
     "github.com/grab/symphony"
 )
 
+type User struct {
+    ID int64
+    Weight float64
+    Height float64
+    BMI float64
+
+}
+
+
 func main() {
+    // create a dummy user with ID=1
+    u := &User{ID: 1}
+
+    // init symphony
     s := symphony.New()
 
-    // Define Task f1, f2, f3
+    // Define Task fetchWeight, fetchHeight, calculateBMI
     // Task can be declare in any order
-    s.Add("f1", nil, func(res map[string]*symphony.TaskState) (interface{}, error)){
-        return "f1 result", nil
-    }).Add("f2", nil, func(res map[string]*symphony.TaskState) (interface{}, error){
-        return "f2 result", nil
-    }).Add("f3", []string{"f1", "f2"}, func(res map[string]*symphony.TaskState) (interface{}, error) {
-        return "f3 result", nil
+    s.Add("fetchWeight", nil, func(res map[string]*symphony.TaskState) (interface{}, error)){
+        // assume a remote WeightService call  
+        u.Weight = callWeightService(u.ID)
+        return "weight fetched ", nil
+    }).Add("fetchHeight", nil, func(res map[string]*symphony.TaskState) (interface{}, error){
+        // assume a remote HeightService call  
+        u.Height = callHeightService(u.ID)
+        return "height fetched", nil
+    }).Add("calculateBMI", []string{"fetchWeight", "fetchHeight"}, func(res map[string]*symphony.TaskState) (interface{}, error) {
+        // Note that we declare the dependency in the above line, so this block will be called only after fetchWeight and fetchHeight tasks are done
+        u.BMI = callBMICalculator(u.Weight, u.Height)
+        return "BMI calculated", nil
     })
-    // wait up to 1500ms
-    res, err := s.Do(context.Background(), 1500)
 
-    f2result,errf2 := res["f2"]
-    f3result, errf3 := res["f3"]
+    // shutdown the call if it exceeds 1500ms 
+    result, err := s.Do(context.Background(), 1500)
+
+    BMI := result["calculateBMI"]
+    fmt.Printf("BMI: %d, err: %s", BMI, err)
  }
 ```
 
@@ -74,25 +95,36 @@ var symphonyLatencyFunc = func(statRecord *symphony.TaskRunTimeStat) {
 }
 
 func main() {
+     // create a dummy user with ID=1
+    u := &User{ID: 1}
+
     s := symphony.New()
 
-    // Define Task f1, f2, f3
+    // Define Task fetchWeight, fetchHeight, calculateBMI
     // Task can be declare in any order
-    s.Add("f1", nil, func(res map[string]*symphony.TaskState) (interface{}, error)){
-        return "f1 result", nil
-    }).Add("f2", nil, func(res map[string]*symphony.TaskState) (interface{}, error){
-        return "f2 result", nil
-    }).Add("f3", []string{"f1", "f2"}, func(res map[string]*symphony.TaskState) (interface{}, error) {
-        return "f3 result", nil
+    s.Add("fetchWeight", nil, func(res map[string]*symphony.TaskState) (interface{}, error)){
+        // assume a remote WeightService call  
+        u.Weight = callWeightService(u.ID)
+        return "weight fetched ", nil
+    }).Add("fetchHeight", nil, func(res map[string]*symphony.TaskState) (interface{}, error){
+        // assume a remote HeightService call  
+        u.Height = callHeightService(u.ID)
+        return "height fetched", nil
+    }).Add("calculateBMI", []string{"fetchWeight", "fetchHeight"}, func(res map[string]*symphony.TaskState) (interface{}, error) {
+        // Note that we declare the dependency in the above line, so this block will be called only after fetchWeight and fetchHeight tasks are done
+        u.BMI = callBMICalculator(u.Weight, u.Height)
+        return "BMI calculated", nil
     })
+
     // you could set the latency check func here, and it is optional.
     // the function will be called after the symphony finished a task.
     s.SetTaskRuntimeStatFunc(symphonyLatencyFunc)
-    // wait up to 1500ms
-    res, err := s.Do(context.Background(), 1500)
 
-    f2result,errf2 := res["f2"]
-    f3result, errf3 := res["f3"]
+    // shutdown the call if it exceeds 1500ms 
+    result, err := s.Do(context.Background(), 1500)
+
+    BMI := result["calculateBMI"]
+    fmt.Printf("BMI: %d, err: %s", BMI, err)
  }
 ```
 
